@@ -13,7 +13,7 @@ export function generateFarmSummaryPDF({
   totalIncome,
   totalPaid,
   netProfit,
-  adminEmail = 'sammyseth260@gmail.com'
+  adminEmail = 'Authorized Master Administrator'
 }) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -235,7 +235,7 @@ export function generateWorkerStatementPDF({
   weekCycle,
   withdrawals,
   payments,
-  adminEmail = 'sammyseth260@gmail.com'
+  adminEmail = 'Authorized Master Administrator'
 }) {
   const doc = new jsPDF({
     orientation: 'portrait',

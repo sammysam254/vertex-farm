@@ -226,7 +226,7 @@ export function AuthGate({ onAuthorized }) {
               />
               <button
                 onClick={() => {
-                  if (recoveryCode === '260' || recoveryCode === 'sammyseth260') {
+                  if (recoveryCode === '260' || recoveryCode === 'vertex260') {
                     localStorage.removeItem('vertex_farm_device_banned');
                     localStorage.removeItem('vertex_farm_ban_details');
                     setIsDeviceBanned(false);

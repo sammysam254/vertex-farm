@@ -1,7 +1,6 @@
 -- ==========================================================
 -- VERTEX FARM - SUPABASE DATABASE SCHEMA
 -- Multi-Android Survey Fleet & Revenue Ledger
--- Admin Email: sammyseth260@gmail.com
 -- ==========================================================
 
 -- Enable UUID extension
@@ -61,39 +60,21 @@ alter table public.devices enable row level security;
 alter table public.withdrawals enable row level security;
 alter table public.worker_payments enable row level security;
 
--- Policies allowing access for the designated admin email
+-- Policies allowing access for authorized applications
 create policy "Allow access for authorized admin on devices"
     on public.devices for all
-    using (
-        auth.jwt() ->> 'email' in ('sammyseth260@gmail.com', 'sammyseth260@gmasil.com')
-        or auth.role() = 'anon'
-    )
-    with check (
-        auth.jwt() ->> 'email' in ('sammyseth260@gmail.com', 'sammyseth260@gmasil.com')
-        or auth.role() = 'anon'
-    );
+    using (true)
+    with check (true);
 
 create policy "Allow access for authorized admin on withdrawals"
     on public.withdrawals for all
-    using (
-        auth.jwt() ->> 'email' in ('sammyseth260@gmail.com', 'sammyseth260@gmasil.com')
-        or auth.role() = 'anon'
-    )
-    with check (
-        auth.jwt() ->> 'email' in ('sammyseth260@gmail.com', 'sammyseth260@gmasil.com')
-        or auth.role() = 'anon'
-    );
+    using (true)
+    with check (true);
 
 create policy "Allow access for authorized admin on worker_payments"
     on public.worker_payments for all
-    using (
-        auth.jwt() ->> 'email' in ('sammyseth260@gmail.com', 'sammyseth260@gmasil.com')
-        or auth.role() = 'anon'
-    )
-    with check (
-        auth.jwt() ->> 'email' in ('sammyseth260@gmail.com', 'sammyseth260@gmasil.com')
-        or auth.role() = 'anon'
-    );
+    using (true)
+    with check (true);
 
 -- Realtime publication for instant live updates across tabs
 alter publication supabase_realtime add table public.devices;

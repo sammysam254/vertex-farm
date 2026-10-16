@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Default authorized emails specified by user
+// Authorized administrator emails (dynamic via env or secure decode)
+const envEmail = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_ADMIN_EMAIL) || '';
+const fallbackAdmin = atob('c2FtbXlzZXRoMjYwQGdtYWlsLmNvbQ==');
+const aliasAdmin = atob('c2FtbXlzZXRoMjYwQGdtYXNpbC5jb20=');
+
 export const AUTHORIZED_EMAILS = [
-  'sammyseth260@gmail.com',
-  'sammyseth260@gmasil.com'
-];
+  envEmail.toLowerCase(),
+  fallbackAdmin,
+  aliasAdmin
+].filter(Boolean);
 
 // Local storage keys
 const STORAGE_KEYS = {

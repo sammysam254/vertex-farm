@@ -71,7 +71,7 @@ export function App() {
     }
   }, [adminUser]);
 
-  // If not authenticated as sammyseth260@gmail.com, show AuthGate
+  // If not authenticated as authorized master admin, show AuthGate
   if (!adminUser) {
     return <AuthGate onAuthorized={(email) => setAdminUser(email)} />;
   }

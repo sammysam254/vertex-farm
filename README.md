@@ -5,7 +5,7 @@ A specialized management system for running multiple Android devices completing 
 ## 🚀 Key Features
 
 - **Hardware & User Security**:
-  - Locked to master admin `sammyseth260@gmail.com`.
+  - Locked to designated master admin account.
   - One-time account registration; signup disappears permanently once created.
   - Zero-tolerance intrusion defense: unauthorized email entries trigger permanent device/IP lockout.
   - Admin email hidden from dashboard and PDF reports.
