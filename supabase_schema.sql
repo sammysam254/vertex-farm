@@ -55,18 +55,31 @@ create index if not exists idx_payments_week on public.worker_payments(week_cycl
 create index if not exists idx_payments_device on public.worker_payments(device_id);
 create index if not exists idx_devices_serial on public.devices(serial_number);
 
+-- 4. Security Blacklist Table (Cross-Browser & IP Ban Persistence)
+create table if not exists public.security_blacklist (
+    id uuid primary key default uuid_generate_v4(),
+    ip_address text,
+    device_signature text,
+    attempted_email text,
+    banned_at timestamptz default now()
+);
+
 -- Enable Row Level Security (RLS)
 alter table public.devices enable row level security;
 alter table public.withdrawals enable row level security;
 alter table public.worker_payments enable row level security;
+alter table public.security_blacklist enable row level security;
 
 -- Drop existing policies first to prevent "policy already exists" errors
 drop policy if exists "Allow access for authorized admin on devices" on public.devices;
 drop policy if exists "Allow access for authorized admin on withdrawals" on public.withdrawals;
 drop policy if exists "Allow access for authorized admin on worker_payments" on public.worker_payments;
-drop policy if exists "Admin access devices" on public.devices;
-drop policy if exists "Admin access withdrawals" on public.withdrawals;
-drop policy if exists "Admin access payments" on public.worker_payments;
+drop policy if exists "Allow access for security_blacklist" on public.security_blacklist;
+
+create policy "Allow access for security_blacklist"
+    on public.security_blacklist for all
+    using (true)
+    with check (true);
 
 -- Create policies fresh
 create policy "Allow access for authorized admin on devices"

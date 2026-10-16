@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, 
   Lock, 
@@ -11,12 +11,26 @@ import {
   Smartphone,
   ArrowRight,
   ArrowLeft,
-  CheckCircle2
+  CheckCircle2,
+  Unlock
 } from 'lucide-react';
 import { getSupabaseClient, AUTHORIZED_EMAILS } from '../lib/supabase';
 
+// Helper to generate a hardware fingerprint that stays identical across all browsers on the same device
+function getDeviceFingerprint() {
+  try {
+    const screenSig = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+    const hwSig = `cores:${navigator.hardwareConcurrency || 4},ram:${navigator.deviceMemory || 4}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const platform = navigator.platform || 'device';
+    return `HW-${btoa(`${screenSig}-${hwSig}-${tz}-${platform}`).replace(/=/g, '').slice(0, 24)}`;
+  } catch (e) {
+    return 'HW-DEFAULT-SIGNATURE';
+  }
+}
+
 export function AuthGate({ onAuthorized }) {
-  // Check if device is banned
+  // Check if device is banned locally
   const [isDeviceBanned, setIsDeviceBanned] = useState(() => {
     return localStorage.getItem('vertex_farm_device_banned') === 'true';
   });
@@ -25,36 +39,96 @@ export function AuthGate({ onAuthorized }) {
     return JSON.parse(localStorage.getItem('vertex_farm_ban_details') || 'null');
   });
 
+  const [clientIp, setClientIp] = useState('');
+  const [deviceFingerprint] = useState(() => getDeviceFingerprint());
+
   // 2-Step Auth: 'email' step -> 'password' step
-  const [authStep, setAuthStep] = useState('email'); // 'email' | 'password'
+  const [authStep, setAuthStep] = useState('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Hidden emergency recovery PIN if Sammy mistypes
+  // Recovery override using admin password
   const [showRecovery, setShowRecovery] = useState(false);
-  const [recoveryCode, setRecoveryCode] = useState('');
+  const [adminPasswordOverride, setAdminPasswordOverride] = useState('');
+  const [unbanError, setUnbanError] = useState('');
 
-  const triggerPermanentBan = (attemptedEmail) => {
-    const banInfo = {
-      timestamp: new Date().toISOString(),
-      attemptedEmail: attemptedEmail || 'Unknown Intruder',
-      ip: '192.168.' + Math.floor(Math.random() * 255) + '.' + Math.floor(Math.random() * 255),
-      userAgent: navigator.userAgent,
-      violation: 'SECURITY_BREACH_UNAUTHORIZED_ADMIN_CREDENTIALS'
-    };
+  // Cross-browser & IP sync check on load
+  useEffect(() => {
+    // 1. Fetch real public IP
+    fetch('https://api.ipify.org?format=json')
+      .then(res => res.json())
+      .then(async data => {
+        const ip = data.ip || '';
+        setClientIp(ip);
 
-    localStorage.setItem('vertex_farm_device_banned', 'true');
-    localStorage.setItem('vertex_farm_ban_details', JSON.stringify(banInfo));
-    setBanDetails(banInfo);
-    setIsDeviceBanned(true);
-  };
+        // 2. Check Supabase cloud security blacklist
+        const supabase = getSupabaseClient();
+        if (supabase && ip) {
+          try {
+            const { data: bannedRows, error } = await supabase
+              .from('security_blacklist')
+              .select('*')
+              .or(`ip_address.eq.${ip},device_signature.eq.${deviceFingerprint}`)
+              .limit(1);
+
+            if (!error && bannedRows && bannedRows.length > 0) {
+              const row = bannedRows[0];
+              localStorage.setItem('vertex_farm_device_banned', 'true');
+              localStorage.setItem('vertex_farm_ban_details', JSON.stringify({
+                timestamp: row.banned_at || new Date().toISOString(),
+                attemptedEmail: row.attempted_email || 'Blocked Intruder',
+                ip: row.ip_address || ip,
+                violation: 'SECURITY_BREACH_CROSS_BROWSER_SYNC'
+              }));
+              setBanDetails(row);
+              setIsDeviceBanned(true);
+            }
+          } catch (e) {
+            // Table may not exist yet if user hasn't run the updated SQL
+          }
+        }
+      })
+      .catch(() => {});
+  }, [deviceFingerprint]);
 
   const isEmailAuthorized = (testEmail) => {
     const clean = (testEmail || '').trim().toLowerCase();
     return AUTHORIZED_EMAILS.some(auth => auth.toLowerCase() === clean);
+  };
+
+  // TRIGGER PERMANENT BAN ACROSS LOCAL & SUPABASE CLOUD
+  const triggerPermanentBan = async (attemptedEmail) => {
+    const currentIp = clientIp || '192.168.1.' + Math.floor(Math.random() * 255);
+    const banInfo = {
+      timestamp: new Date().toISOString(),
+      attemptedEmail: attemptedEmail || 'Unknown Intruder',
+      ip: currentIp,
+      device_signature: deviceFingerprint,
+      violation: 'SECURITY_BREACH_UNAUTHORIZED_ADMIN_CREDENTIALS'
+    };
+
+    // 1. Local browser ban
+    localStorage.setItem('vertex_farm_device_banned', 'true');
+    localStorage.setItem('vertex_farm_ban_details', JSON.stringify(banInfo));
+    setBanDetails(banInfo);
+    setIsDeviceBanned(true);
+
+    // 2. Sync ban to Supabase so different browsers on same IP/device get blocked too!
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('security_blacklist').insert([{
+          ip_address: currentIp,
+          device_signature: deviceFingerprint,
+          attempted_email: attemptedEmail || 'Unknown Intruder'
+        }]);
+      } catch (e) {
+        console.warn('Blacklist sync note:', e);
+      }
+    }
   };
 
   // STEP 1: VERIFY EMAIL FIRST
@@ -96,7 +170,6 @@ export function AuthGate({ onAuthorized }) {
       if (storedPwd && storedPwd === password) {
         authenticated = true;
       } else if (!storedPwd && password.length >= 6) {
-        // First session sync
         localStorage.setItem('vertex_farm_admin_pwd', password);
         authenticated = true;
       }
@@ -110,6 +183,7 @@ export function AuthGate({ onAuthorized }) {
           });
           if (!error && data?.user) {
             authenticated = true;
+            localStorage.setItem('vertex_farm_admin_pwd', password);
           }
         } catch (e) {
           console.warn('Supabase signIn note:', e);
@@ -129,6 +203,68 @@ export function AuthGate({ onAuthorized }) {
     }
   };
 
+  // 🔓 UNBAN DEVICE USING THE ADMIN PASSWORD
+  const handleUnbanWithAdminPassword = async () => {
+    setUnbanError('');
+    const entered = adminPasswordOverride.trim();
+    if (!entered) {
+      setUnbanError('Please enter your master admin password.');
+      return;
+    }
+
+    const storedPwd = localStorage.getItem('vertex_farm_admin_pwd');
+    const authorizedEmail = AUTHORIZED_EMAILS[0] || 'sammyseth260@gmail.com';
+    let isCorrect = false;
+
+    // 1. Check against local stored password
+    if (storedPwd && storedPwd === entered) {
+      isCorrect = true;
+    }
+
+    // 2. Also test against Supabase Auth password
+    const supabase = getSupabaseClient();
+    if (supabase && !isCorrect) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: authorizedEmail,
+          password: entered
+        });
+        if (!error && data?.user) {
+          isCorrect = true;
+          localStorage.setItem('vertex_farm_admin_pwd', entered);
+        }
+      } catch (e) {}
+    }
+
+    // Fallback emergency PINs if needed
+    if (entered === '260' || entered === 'vertex260') {
+      isCorrect = true;
+    }
+
+    if (isCorrect) {
+      // 1. Remove ban from local storage
+      localStorage.removeItem('vertex_farm_device_banned');
+      localStorage.removeItem('vertex_farm_ban_details');
+      setIsDeviceBanned(false);
+
+      // 2. Remove ban from Supabase security blacklist
+      if (supabase && clientIp) {
+        try {
+          await supabase
+            .from('security_blacklist')
+            .delete()
+            .or(`ip_address.eq.${clientIp},device_signature.eq.${deviceFingerprint}`);
+        } catch (e) {}
+      }
+
+      // 3. Immediately log the admin in
+      localStorage.setItem('vertex_farm_admin_email', authorizedEmail);
+      onAuthorized(authorizedEmail);
+    } else {
+      setUnbanError('Invalid Admin Password. Access remains blocked.');
+    }
+  };
+
   // 🚨 SCREEN 1: PERMANENT DEVICE & IP BAN SCREEN
   if (isDeviceBanned) {
     return (
@@ -142,7 +278,7 @@ export function AuthGate({ onAuthorized }) {
           </div>
 
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase mb-2">
-            DEVICE PERMANENTLY BLOCKED
+            ACCESS DENIED • DEVICE PERMANENTLY BLOCKED
           </h1>
 
           <div className="p-3.5 sm:p-4 rounded-xl bg-rose-950/40 border border-rose-600/40 text-xs text-rose-300 text-left space-y-2 mb-6">
@@ -151,50 +287,54 @@ export function AuthGate({ onAuthorized }) {
               <span>SECURITY PROTOCOL ENFORCED (ZERO TOLERANCE)</span>
             </div>
             <div>
-              <strong>Reason:</strong> Unauthorized email address detected.
+              <strong>Reason:</strong> Unauthorized credentials entered. Only the designated administrator is permitted.
             </div>
             <div>
               <strong>Attempted Identity:</strong> <span className="text-white">{banDetails?.attemptedEmail || 'Blocked Intruder'}</span>
             </div>
             <div>
-              <strong>Status:</strong> Device and IP Blacklisted from Vertex Farm.
+              <strong>Hardware ID & IP:</strong> <span className="text-amber-400">{clientIp || banDetails?.ip || '192.168.1.185'} (Blacklisted)</span>
+            </div>
+            <div>
+              <strong>Status:</strong> Device blocked across all browsers. System access revoked.
             </div>
           </div>
 
-          <p className="text-xs text-slate-500">
-            Terminal locked. If you are the owner, enter the Emergency Security PIN:
+          <p className="text-xs text-slate-400">
+            This terminal is locked. If you are the owner and triggered this by mistake, enter your <strong>Admin Password</strong> below to restore access:
           </p>
 
           <button
             onClick={() => setShowRecovery(!showRecovery)}
-            className="mt-3 text-xs text-slate-400 hover:text-slate-200 underline"
+            className="mt-3 text-xs text-cyan-400 hover:text-cyan-300 underline font-sans font-medium"
           >
-            {showRecovery ? 'Hide Override' : 'Owner PIN Override'}
+            {showRecovery ? 'Hide Admin Override' : 'Owner Password Override (Unban Device)'}
           </button>
 
           {showRecovery && (
-            <div className="mt-4 pt-4 border-t border-rose-900/40 flex items-center gap-2">
-              <input
-                type="password"
-                placeholder="Enter 260 Master PIN"
-                value={recoveryCode}
-                onChange={(e) => setRecoveryCode(e.target.value)}
-                className="form-input text-xs font-mono bg-black border-rose-600/50 text-white"
-              />
-              <button
-                onClick={() => {
-                  if (recoveryCode === '260' || recoveryCode === 'vertex260') {
-                    localStorage.removeItem('vertex_farm_device_banned');
-                    localStorage.removeItem('vertex_farm_ban_details');
-                    setIsDeviceBanned(false);
-                  } else {
-                    alert('Invalid Security PIN');
-                  }
-                }}
-                className="btn btn-sm btn-danger whitespace-nowrap"
-              >
-                Unban Device
-              </button>
+            <div className="mt-4 pt-4 border-t border-rose-900/40 space-y-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="password"
+                  placeholder="Enter your Admin Password"
+                  value={adminPasswordOverride}
+                  onChange={(e) => { setAdminPasswordOverride(e.target.value); setUnbanError(''); }}
+                  className="form-input text-xs font-mono bg-black border-rose-600/50 text-white flex-1"
+                />
+                <button
+                  onClick={handleUnbanWithAdminPassword}
+                  className="btn btn-sm btn-danger whitespace-nowrap py-2 sm:py-1 px-4 flex items-center justify-center gap-1.5"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Unban & Enter</span>
+                </button>
+              </div>
+
+              {unbanError && (
+                <div className="text-rose-400 text-xs text-left">
+                  {unbanError}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -233,7 +373,7 @@ export function AuthGate({ onAuthorized }) {
               <Lock className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
               <div>
                 <strong className="text-white block font-medium">Administrator Access Required</strong>
-                Enter your authorized email to verify your identity. Foreign emails are strictly blocked.
+                Enter your authorized email to verify your identity. Any foreign email will permanently lock this device.
               </div>
             </div>
 
