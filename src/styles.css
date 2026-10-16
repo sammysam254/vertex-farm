@@ -214,6 +214,12 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(15, 23, 42, 0.98);
 }
 
+@media (max-width: 640px) {
+  .form-input, .form-select, .form-textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Progress bar */
 .progress-track {
   width: 100%;

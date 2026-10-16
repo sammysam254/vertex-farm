@@ -212,7 +212,7 @@ export function App() {
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-8">
+      <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
         
         {/* Dynamic Financial Pool Cards */}
         <PoolCards

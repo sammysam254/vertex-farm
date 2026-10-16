@@ -7,7 +7,8 @@ import {
   Search, 
   Layers, 
   Calendar,
-  CheckCircle,
+  Smartphone,
+  User,
   Tag
 } from 'lucide-react';
 import { formatUSD, formatDatePretty } from '../utils/dateUtils';
@@ -49,12 +50,12 @@ export function TransactionsTable({
   });
 
   return (
-    <div className="glass-panel p-5 mb-6">
+    <div className="glass-panel p-4 sm:p-5 mb-6">
       
       {/* Title & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
             <Layers className="w-5 h-5 text-cyan-400" />
             Live Revenue & Payout Ledger
           </h2>
@@ -72,7 +73,7 @@ export function TransactionsTable({
               placeholder="Search serial, worker..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="form-input pl-8 py-1.5 text-xs rounded-lg"
+              className="form-input pl-8 py-2 sm:py-1.5 text-xs rounded-lg"
             />
           </div>
 
@@ -80,17 +81,62 @@ export function TransactionsTable({
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="form-select py-1.5 text-xs rounded-lg w-auto text-slate-300"
+            className="form-select py-2 sm:py-1.5 text-xs rounded-lg w-auto text-slate-300"
           >
             <option value="all">All Types</option>
-            <option value="withdrawal">Withdrawals Only</option>
-            <option value="payment">Paid to Workers</option>
+            <option value="withdrawal">Withdrawals</option>
+            <option value="payment">Paid Out</option>
           </select>
         </div>
       </div>
 
-      {/* Ledger Table */}
-      <div className="overflow-x-auto">
+      {/* 📱 MOBILE VIEW: CARDS LIST (Visible on screens < 768px) */}
+      <div className="block md:hidden space-y-2.5">
+        {filtered.map(tx => (
+          <div 
+            key={tx.id} 
+            className="p-3 rounded-xl bg-slate-900/80 border border-white/5 flex items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                tx.isIncome ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/25' : 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
+              }`}>
+                {tx.isIncome ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-xs text-white truncate">{tx.device_serial}</span>
+                  <span className="text-[11px] text-slate-400 truncate">• {tx.worker_name}</span>
+                </div>
+                <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                  <span>{formatDatePretty(tx.withdrawal_date || tx.payment_date)}</span>
+                  <span>({tx.platform || tx.payment_method || 'Surveys'})</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className={`font-mono font-bold text-sm ${tx.isIncome ? 'text-cyan-400' : 'text-amber-400'}`}>
+                {tx.isIncome ? `+${formatUSD(tx.amount_usd)}` : `-${formatUSD(tx.amount_usd)}`}
+              </span>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Delete this ${tx.txType} of ${formatUSD(tx.amount_usd)}?`)) {
+                    onDeleteTransaction(tx.txType, tx.id);
+                  }
+                }}
+                className="p-1.5 text-slate-500 hover:text-rose-400"
+                title="Delete record"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 💻 DESKTOP VIEW: FULL TABLE (Visible on screens >= 768px) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-white/10 text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-950/40">
@@ -174,13 +220,13 @@ export function TransactionsTable({
             ))}
           </tbody>
         </table>
-
-        {filtered.length === 0 && (
-          <div className="text-center py-8 text-slate-400">
-            <p className="text-xs">No ledger entries match this criteria.</p>
-          </div>
-        )}
       </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-8 text-slate-400">
+          <p className="text-xs">No ledger entries match this criteria.</p>
+        </div>
+      )}
 
     </div>
   );
