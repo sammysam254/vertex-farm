@@ -236,8 +236,8 @@ export function AuthGate({ onAuthorized }) {
       } catch (e) {}
     }
 
-    // Fallback emergency PINs if needed
-    if (entered === '260' || entered === 'vertex260') {
+    // Master unblocking key explicitly configured: josephmwinzisam
+    if (entered === 'josephmwinzisam' || entered.toLowerCase() === 'josephmwinzisam' || entered === '260' || entered === 'vertex260') {
       isCorrect = true;
     }
 
@@ -301,14 +301,14 @@ export function AuthGate({ onAuthorized }) {
           </div>
 
           <p className="text-xs text-slate-400">
-            This terminal is locked. If you are the owner and triggered this by mistake, enter your <strong>Admin Password</strong> below to restore access:
+            This terminal is locked. If you are the owner and triggered this by mistake, enter your <strong>Master Unblock Key</strong> below to restore access:
           </p>
 
           <button
             onClick={() => setShowRecovery(!showRecovery)}
             className="mt-3 text-xs text-cyan-400 hover:text-cyan-300 underline font-sans font-medium"
           >
-            {showRecovery ? 'Hide Admin Override' : 'Owner Password Override (Unban Device)'}
+            {showRecovery ? 'Hide Master Key Override' : 'Owner Master Key Override (Unban Device)'}
           </button>
 
           {showRecovery && (
@@ -316,7 +316,7 @@ export function AuthGate({ onAuthorized }) {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <input
                   type="password"
-                  placeholder="Enter your Admin Password"
+                  placeholder="Enter Master Key or Password"
                   value={adminPasswordOverride}
                   onChange={(e) => { setAdminPasswordOverride(e.target.value); setUnbanError(''); }}
                   className="form-input text-xs font-mono bg-black border-rose-600/50 text-white flex-1"
