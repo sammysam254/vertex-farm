@@ -94,11 +94,16 @@ export function DeviceList({
 
           const earned = devWithdrawals.reduce((sum, w) => sum + Number(w.amount_usd || 0), 0);
           const paid = devPayments.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0);
+          
+          // Remaining balance after what was paid is deducted
+          const remainingBalance = earned - paid;
           const target = Number(device.weekly_target_usd || 40);
-          const quotaAchieved = earned >= target;
-          const quotaPercent = Math.min(100, Math.round((earned / target) * 100));
-          const grossSurplus = Math.max(0, earned - target);
-          const workerBalance = grossSurplus - paid;
+          
+          // Target is achieved ONLY if the balance after what is paid is >= 40
+          const quotaAchieved = remainingBalance >= target;
+          const quotaPercent = Math.min(100, Math.max(0, Math.round((remainingBalance / target) * 100)));
+          const remainingToHitTarget = Math.max(0, target - remainingBalance);
+          const workerSurplus = Math.max(0, remainingBalance - target);
           const isTerminated = device.worker_status === 'terminated';
 
           return (
@@ -131,11 +136,11 @@ export function DeviceList({
                         </span>
                       ) : quotaAchieved ? (
                         <span className="badge badge-success text-[10px] py-0.5">
-                          <CheckCircle2 className="w-3 h-3" /> $40 Met
+                          <CheckCircle2 className="w-3 h-3" /> Target Achieved ($40+ Net)
                         </span>
                       ) : (
                         <span className="badge badge-warning text-[10px] py-0.5">
-                          {formatUSD(target - earned)} left
+                          {formatUSD(remainingToHitTarget)} left to hit $40
                         </span>
                       )}
                     </div>
@@ -167,14 +172,14 @@ export function DeviceList({
                 </div>
               </div>
 
-              {/* Quota Progress Bar */}
+              {/* Quota Progress Bar based on Remaining Net Balance */}
               <div className="mt-3">
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-slate-400 font-medium">
-                    Owner Target: <strong className="text-white">$40.00</strong> (Due Sat 23:59)
+                    Owner Target: <strong className="text-white">$40.00</strong> (After Payouts Deducted)
                   </span>
                   <span className={`font-mono font-bold ${quotaAchieved ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {formatUSD(earned)} / $40.00
+                    {formatUSD(remainingBalance)} / $40.00
                   </span>
                 </div>
                 <div className="progress-track bg-slate-800">
@@ -189,10 +194,10 @@ export function DeviceList({
                 </div>
               </div>
 
-              {/* Financial Snapshot */}
+              {/* Financial Snapshot with Remaining Unpaid Balance */}
               <div className="grid grid-cols-3 gap-2 mt-3 p-2 rounded-lg bg-slate-950/40 text-center text-xs">
                 <div>
-                  <div className="text-[10px] text-slate-400 uppercase">Earned</div>
+                  <div className="text-[10px] text-slate-400 uppercase">Earned (Gross)</div>
                   <div className="font-mono font-bold text-cyan-300 mt-0.5">{formatUSD(earned)}</div>
                 </div>
                 <div>
@@ -200,11 +205,24 @@ export function DeviceList({
                   <div className="font-mono font-bold text-amber-300 mt-0.5">{formatUSD(paid)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-slate-400 uppercase">Worker Bal.</div>
-                  <div className={`font-mono font-bold mt-0.5 ${workerBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatUSD(workerBalance)}
+                  <div className="text-[10px] text-slate-400 uppercase">Remaining (Net)</div>
+                  <div className={`font-mono font-bold mt-0.5 ${quotaAchieved ? 'text-emerald-400' : 'text-amber-300'}`}>
+                    {formatUSD(remainingBalance)}
                   </div>
                 </div>
+              </div>
+
+              {/* Status explanation */}
+              <div className="mt-2 px-1 text-[11px] flex items-center justify-between">
+                {quotaAchieved ? (
+                  <span className="text-emerald-400 font-medium">
+                    ✅ $40 Target secured! Worker Sunday surplus: <strong>{formatUSD(workerSurplus)}</strong>
+                  </span>
+                ) : (
+                  <span className="text-amber-400/90 font-medium">
+                    ⚠️ Needs <strong>{formatUSD(remainingToHitTarget)}</strong> more after deductions to hit $40 target
+                  </span>
+                )}
               </div>
 
               {/* Action Buttons */}

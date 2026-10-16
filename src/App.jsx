@@ -106,13 +106,18 @@ export function App() {
   const totalPaid = weekPayments.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0);
   const netProfit = totalIncome - totalPaid;
 
-  // Quotas met count
+  // Quotas met count: target is achieved only if balance after paid is >= 40
   const targetHitCount = devices.filter(dev => {
     const devWithdrawals = weekWithdrawals.filter(
       w => w.device_serial === dev.serial_number || w.device_id === dev.id
     );
+    const devPayments = weekPayments.filter(
+      p => p.device_serial === dev.serial_number || p.device_id === dev.id
+    );
     const earned = devWithdrawals.reduce((sum, w) => sum + Number(w.amount_usd || 0), 0);
-    return earned >= Number(dev.weekly_target_usd || 40);
+    const paid = devPayments.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0);
+    const remainingBalance = earned - paid;
+    return remainingBalance >= Number(dev.weekly_target_usd || 40);
   }).length;
 
   // ---------------- ACTION HANDLERS ---------------- //

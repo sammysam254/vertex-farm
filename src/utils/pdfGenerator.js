@@ -108,11 +108,12 @@ export function generateFarmSummaryPDF({
 
     const earned = devWithdrawals.reduce((sum, w) => sum + Number(w.amount_usd || 0), 0);
     const paid = devPayments.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0);
+    const remainingBalance = earned - paid;
     const target = Number(device.weekly_target_usd || 40);
 
-    const hitQuota = earned >= target;
-    const workerEligible = Math.max(0, earned - target) - paid;
-    const statusText = hitQuota ? 'TARGET MET ($40+)' : `IN PROGRESS (${formatUSD(earned)} / $40)`;
+    const hitQuota = remainingBalance >= target;
+    const workerEligible = Math.max(0, remainingBalance - target);
+    const statusText = hitQuota ? 'TARGET MET ($40+ Net)' : `IN PROGRESS (${formatUSD(remainingBalance)} / $40)`;
 
     return [
       device.serial_number,
@@ -121,14 +122,14 @@ export function generateFarmSummaryPDF({
       formatUSD(target),
       formatUSD(earned),
       formatUSD(paid),
-      formatUSD(workerEligible),
+      formatUSD(remainingBalance),
       statusText
     ];
   });
 
   autoTable(doc, {
     startY: startY + 4,
-    head: [['Serial No.', 'Worker', 'Phone', 'Owner Target', 'Earned', 'Paid', 'Worker Bal.', 'Target Status']],
+    head: [['Serial No.', 'Worker', 'Phone', 'Owner Target', 'Earned', 'Paid', 'Remaining Net', 'Target Status']],
     body: deviceRows,
     theme: 'grid',
     headStyles: {
@@ -292,14 +293,14 @@ export function generateWorkerStatementPDF({
   doc.text(deviceSerial, 75, startY + 17);
   doc.text(workerPhone || 'N/A (Optional)', 135, startY + 17);
 
-  // Financial Breakdown calculations
+  // Financial Breakdown calculations: remaining balance after paid deductions
   const totalEarned = withdrawals.reduce((sum, w) => sum + Number(w.amount_usd || 0), 0);
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0);
+  const remainingBalance = totalEarned - totalPaid;
   const ownerTarget = 40.00;
-  const ownerCut = Math.min(totalEarned, ownerTarget);
-  const grossSurplus = Math.max(0, totalEarned - ownerTarget);
-  const netDueToWorker = grossSurplus - totalPaid;
-  const targetAchieved = totalEarned >= ownerTarget;
+  const ownerCut = Math.min(remainingBalance, ownerTarget);
+  const netDueToWorker = Math.max(0, remainingBalance - ownerTarget);
+  const targetAchieved = remainingBalance >= ownerTarget;
 
   // Breakdown Summary Boxes
   startY = 84;
@@ -354,8 +355,8 @@ export function generateWorkerStatementPDF({
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(targetAchieved ? 22 : 185, targetAchieved ? 101 : 28, targetAchieved ? 52 : 28);
   const statusMsg = targetAchieved
-    ? `TARGET STATUS: Owner $40 USD quota satisfied for this week! Remaining surplus is allocated to ${workerName}.`
-    : `TARGET STATUS: Quota Incomplete! ${formatUSD(40 - totalEarned)} remaining to reach the $40 owner target before Saturday 23:59.`;
+    ? `TARGET STATUS: Owner $40 USD quota satisfied for this week after paid deductions! Remaining surplus is allocated to ${workerName}.`
+    : `TARGET STATUS: Quota Incomplete! ${formatUSD(40 - remainingBalance)} remaining after paid deductions to reach the $40 owner target before Saturday 23:59.`;
   doc.text(statusMsg, 18, startY + 9);
 
   // Itemized Activity Table

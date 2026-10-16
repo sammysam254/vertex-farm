@@ -38,9 +38,10 @@ export function AddPaymentModal({
 
   const totalEarned = devWithdrawals.reduce((sum, w) => sum + Number(w.amount_usd || 0), 0);
   const alreadyPaid = devPayments.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0);
+  const currentRemaining = totalEarned - alreadyPaid;
   const target = Number(currentDev?.weekly_target_usd || 40.00);
-  const targetReached = totalEarned >= target;
-  const eligibleSurplus = Math.max(0, totalEarned - target) - alreadyPaid;
+  const targetReached = currentRemaining >= target;
+  const eligibleSurplus = Math.max(0, currentRemaining - target);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -125,19 +126,22 @@ export function AddPaymentModal({
                 )}
                 <div>
                   <div className="font-bold text-sm">
-                    {targetReached ? '$40 Owner Target Secured' : 'Warning: $40 Target Not Met Yet'}
+                    {targetReached ? '$40 Owner Target Secured (Net Balance)' : 'Warning: $40 Target Not Met Yet'}
                   </div>
                   <div className="mt-1 text-slate-300">
-                    Total earned so far: <strong className="text-white font-mono">{formatUSD(totalEarned)}</strong> / $40.00.
+                    Earned: <strong className="text-white font-mono">{formatUSD(totalEarned)}</strong> | Paid: <strong className="text-amber-300 font-mono">{formatUSD(alreadyPaid)}</strong>
+                  </div>
+                  <div className="mt-1 text-slate-300">
+                    Remaining Net Balance: <strong className={`font-mono ${targetReached ? 'text-emerald-300' : 'text-amber-300'}`}>{formatUSD(currentRemaining)}</strong> / $40.00
                   </div>
                   {!targetReached && (
                     <div className="mt-1.5 text-amber-300 font-medium">
-                      ⚠️ Needs <strong>{formatUSD(target - totalEarned)}</strong> more before Saturday 23:59 to guarantee your $40 weekly share before Sunday payday.
+                      ⚠️ Needs <strong>{formatUSD(target - currentRemaining)}</strong> more net balance before Saturday 23:59 to guarantee your $40 weekly share.
                     </div>
                   )}
                   {targetReached && (
                     <div className="mt-1 text-emerald-300">
-                      Eligible worker surplus balance: <strong className="font-mono text-white">{formatUSD(eligibleSurplus)}</strong> (after $40 owner cut and previous advances).
+                      Eligible worker surplus balance: <strong className="font-mono text-white">{formatUSD(eligibleSurplus)}</strong> (after $40 owner target).
                     </div>
                   )}
                 </div>
