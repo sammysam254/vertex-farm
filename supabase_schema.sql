@@ -1,6 +1,6 @@
 -- ==========================================================
--- VERTEX FARM - SUPABASE DATABASE SCHEMA
--- Multi-Android Survey Fleet & Revenue Ledger
+-- VERTEX FARM - IDEMPOTENT SUPABASE SQL SCHEMA
+-- Safe to run multiple times without duplicate errors
 -- ==========================================================
 
 -- Enable UUID extension
@@ -60,7 +60,15 @@ alter table public.devices enable row level security;
 alter table public.withdrawals enable row level security;
 alter table public.worker_payments enable row level security;
 
--- Policies allowing access for authorized applications
+-- Drop existing policies first to prevent "policy already exists" errors
+drop policy if exists "Allow access for authorized admin on devices" on public.devices;
+drop policy if exists "Allow access for authorized admin on withdrawals" on public.withdrawals;
+drop policy if exists "Allow access for authorized admin on worker_payments" on public.worker_payments;
+drop policy if exists "Admin access devices" on public.devices;
+drop policy if exists "Admin access withdrawals" on public.withdrawals;
+drop policy if exists "Admin access payments" on public.worker_payments;
+
+-- Create policies fresh
 create policy "Allow access for authorized admin on devices"
     on public.devices for all
     using (true)
@@ -76,7 +84,27 @@ create policy "Allow access for authorized admin on worker_payments"
     using (true)
     with check (true);
 
--- Realtime publication for instant live updates across tabs
-alter publication supabase_realtime add table public.devices;
-alter publication supabase_realtime add table public.withdrawals;
-alter publication supabase_realtime add table public.worker_payments;
+-- Safe Realtime publication without duplicate errors
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'devices'
+  ) then
+    alter publication supabase_realtime add table public.devices;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'withdrawals'
+  ) then
+    alter publication supabase_realtime add table public.withdrawals;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'worker_payments'
+  ) then
+    alter publication supabase_realtime add table public.worker_payments;
+  end if;
+end $$;
